@@ -1,0 +1,21 @@
+version: "3"
+services:
+  node-app:
+    build:
+      context: .
+      args:
+        NODE_ENV: development
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - MONGO_USER=Bader
+      - MONGO_PASSWORD=myPassword
+      - SESSION_SECRET=someSecret
+    # this is a common approach in node apps, setting this var to development or production for each case
+    command: npm run dev
+  mongo:
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=Bader
+      - MONGO_INITDB_ROOT_PASSWORD=myPassword
