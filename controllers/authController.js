@@ -10,7 +10,9 @@ exports.singUp = async (req, res) => {
     const newUser = await User.create({
       username,
       password: hashPassword
-    })
+    });
+    req.session.user = newUser;
+
     res.status(201).json({
       status: "success",
       data: {
@@ -39,6 +41,7 @@ exports.login = async (req, res) => {
     //  if two are equal we all 'em to access
     isCorrect = await bcrypt.compare(password, user.password)
     if (isCorrect) {
+      req.session.user = user;
       res.status(200).json({
         status: 'success'
       })

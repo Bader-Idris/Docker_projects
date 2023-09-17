@@ -8,7 +8,7 @@ Learn the core fundamentals of Docker by building a Node/Express app with a Mong
 
 3. We'll deploy and Ubuntu VM as our production server, and utilize a container orchestrator like docker swarm to handle rolling updates.
 
-✏️ Course developed by Sanjeev Thiyagarajan. Check out his channel:
+✏️ Course developed by **Sanjeev Thiyagarajan**. Check out his channel:
 
  / @sanjeevthiyagarajan  
 
@@ -817,6 +817,13 @@ These steps are not important to explain, check john's contents when he taught y
 
 Now, test our code with postMan, using `http://localhost:3000/api/v1/posts` url, and check its Fn wit its requests, it's simple, and with post verbs we use required settings we created in models DIR in req.body.
 
+```js
+/* localhost:3000/posts/:id
+  making it /api/v1/posts is better for making it for backend apis,
+  and letting normal paths for front-end, that's a good idea!🤓
+*/
+```
+
 After we tested our crud approach, we'll set users' signing up-in, because we wanna see another container, **redis** container! **we'll wire it up!**
 
 > So, we can use redis for authentication!
@@ -871,47 +878,23 @@ docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 so, we set our redis database image then install what `connect-redis` says:, `express-session` and `connect-redis` and `redis`, as:
 
 ```sh
-npm i redis connect-redis express-session
+npm i redis@3.0.2 connect-redis@5.1.0 express-session
 ```
 
-So, connect-redis library is to wire redis and express-session libraries together.
+> connect-redis will cause many problems with set code if latest version is used🔴🔴 wasted hours and hours of my life😂😅, and redis 3 is too old, but for completing the course I pass it! **@3 has a high severity vulnerability**
+> Mentor was using v 5.1 of **connect-redis** ‼️ and latest is 7.XX.XX so it will probably cause confects
 
-now using docker-compose needs a `--build` flag, for the new libraries, but there is an issue ‼️ check same command with --help, there is a re-new anon-volumes, so it'll keep old libraries, and we don't that to happen, its flag is: `-V`
+connect-redis library is to wire redis and express-session libraries together.
+
+now using docker-compose needs a `--build` flag, for the new libraries, but there is an issue ‼️ check same command with --help, there is a **re-new anon-volumes**, so it'll keep old libraries, and we don't that to happen, its flag is: `-V`🔴
 
 ```sh
 docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build -V
 ```
 
-looking at connect-redis APIs, appearing following full setup redis:
-
-```js
-import RedisStore from "connect-redis"
-import session from "express-session"
-import {createClient} from "redis"
-
-// Initialize client.
-let redisClient = createClient()
-redisClient.connect().catch(console.error)
-
-// Initialize store.
-let redisStore = new RedisStore({
-  client: redisClient,
-  prefix: "myapp:",
-})
-
-// Initialize sesssion storage.
-app.use(
-  session({
-    store: redisStore,
-    resave: false, // required: force lightweight session keep alive (touch)
-    saveUninitialized: false, // recommended: only save session when data exists
-    secret: "keyboard cat",
-  })
-)
-```
+> ⚠️🔴It's very important to look at used **library's APIs**, as connect-redis , especially when watching old tutors‼️🔴⚠️
 
 view new changes in index.js file, we'll get the `host url(ip-address)` && `listening port`, by setting them in config/config.js
-
 in config file, making this OR condition is to be able to set outside of docker redis, as well as mongo above:
 
 ```js
@@ -940,7 +923,6 @@ app.use(session({
 ```
 
 the secret in the **new redisStore**, is used with handling sessions
-
 Then we change env vars in dev docker-compose file as:
 
 ```yml
@@ -950,3 +932,223 @@ environment:
 ```
 
 Then restart the docker-compose command as above!
+after wiring up our session, we need to create new sessions whenever a user logs in. Trying to login with prior signed up user, should return a cookie in postMan post login sent data.
+
+**if secure: true**, it means it'll only work with https! and it needs to set up SSL, https etc...⚠️🔴 **In production, it should be set to true**🔴⚠️
+
+Now, when we login in redis DB using our postMan login POST http verb, it is successful, it sends the cookie we created, and headers are 8 not only prior 7!
+
+we can see cookie parts, as domain, path and the important **expires**`(maxAge)` section
+
+Let's log into our redis database with an exec -it command!
+
+```sh
+docker ps # get it's name
+docker exec -it docker_course_freecodecamp-redis-1 bash
+# in there, we use redis-cli to interact with our DB
+redis-cli --help
+# so we can shorten that with bash -it with
+docker exec -it docker_course_freecodecamp-redis-1 redis-cli
+# to see all entries in our DB, use
+keys *
+# because we used maxAge as 30s it'll return (empty array), if you come when it expires. so, re-login then test it again!
+# we'll find our sess => session
+# to get the details of that session we use GET <sess_key>
+GET "sess:XzOpDjQI1DWLo9fCPMaEiLfedkLznFL3"
+```
+
+We can add any data withing that session, so, we're gonna put user's info into it!
+
+In authController file, we'll implement the logic for login in
+
+```js
+// in login Fn, inside if(isCorrect) {} we use req.session to interact with out cookie
+req.session.user = user // new property! set to created user info that is only invoked when he has credentials to pass login page
+```
+
+Now, when user logs in, in our redis DB, we'll be able to find user data, as mongo_id, username, password, using prior redis commands
+
+```json
+// its format is as:
+"{\"cookie\":{\"originalMaxAge\":30000,\"expires\":\"2023-09-17T05:21:03.111Z\",\"secure\":false,\"httpOnly\":true,\"path\":\"/\"},\"user\":{\"_id\":\"65037e3dc2e1d552c7796c69\",\"username\":\"Bader\",\"password\":\"$2a$12$1CNCKilg7KkHorIN3/h3he8D3bQK3.DoriakfF7/e4HxIDRMlkPkO\",\"__v\":0}}"
+// 30s afterwards, it'll go away
+```
+
+We can use a bottom: **remember me** to let user stays without re-authenticate himself too many times, and if we're dealing with sensitive data as monetary ones, we should use shorter expires method. I'll make it *half an hour* for testing purposes
+
+We also wanna make user stays when signing up with:
+
+```js
+// in same authController file => signup method, after creating newUser, before 201 http code, we add the following
+req.session.user = newUser
+```
+
+test it with adding a new user, and checking the redis DB!
+
+> this *Sanjeev Thiyagarajan* teacher is really good, and has an indian name!🥵(سان جيف بالفاء العادية لا ال)
+
+let's add the functionality to force users to log in when interacting with CURD or all but not get, verbs! **we'll get middleware for that!**, "then it's as tokes in this!"
+
+starting by creating a DIR/file as: `middleware/authMiddleware.js`, then check that module!
+
+then in our postRoute we'll add that simple middleware: `protect` put this: `const protect = require('../middleware/authMiddleware')`, then we use it in **app.verb(mw, Fn)**
+
+then san Sanjeev cleared cookies in postMan, and try that middleware, he says, in prod, not only couple of hours, is preferred, **but even couple of days with some expiring cookies**
+
+### 3:34:36 Architecture Review
+
+Sanjeev is showing this diagram:
+
+```
+|--------------|         
+|       |--------------| 
+| 3000 -> host Machine   
+|       |--------------| 
+|       | 3000    👇  | 
+|       | app/express  | 
+|       |         👇  | 
+|       |   27017 👇  | 
+|       |   mongoDB    | 
+|       |--------------| 
+|--------------| 
+```
+
+that's how we worked with prior dev setup, and we didn't set a port for mongo as we did for port 3000, which isn't a big deal, easy to do as 27017:27017, it'll perfectly work, but we don't need to allow outer world to connect to it except when dealing with our app, and it's a vulnerability, **holding all app data**
+
+> Scaling up node containers!!
+
+when we create more node containers we make them as Load balancing ones, then we connect them with same mongo port. and we give the newer containers different ports as 3001:3000 or so!
+
+> **but that's not a scalable solution, fontend shouldn't be aware of our containers number**
+
+So, **we use real load balancers**!
+
+there are many load balancers as:
+
+1. NGINX (read as engine X) the 🟩 one, we'll use it!
+2. HAProxy
+3. Traefik
+
+so, [it'll be as](![disappeard yo](assets/image.png)), so we no longer need to use many local ports, one will be handled with load balancer {NGINX}.
+
+we'll be using **443 {https}** and, **80{http}**, in docker, but the outer one(localhost) is any port. it's fully customizable, but that's default and good practice
+
+any number of *node instances* will be handled with our load balancer, even if they're 1k ones!
+
+### 3:40:48 Nginx for Load balancing to multiple node containers
+
+the official Nginx in docker comes with `nginx` name.
+We'll create a separate nginx DIR for its configurations.
+we'll add a basic config in `default.conf` file.
+
+we'll add nginx specific configs, it has another syntax, see its content!
+
+`location <url> {proxy_pass <its_url>}` is where we redirect our nginx port into the specific node-container!
+
+because our nginx is a container, and it has access to DNS, we can use **image nginx** name, with proxy_pass `http://node-app:3000;`, calling node-app as that, is gonna load balance app containers.
+
+nginx is acting as a proxy(حلقة وصل) it proxy the original request to express, nginx will strip off a few details🔴🟢
+
+one of them is the main ip_address of the app, to save it, we use: `proxy_set_header X-Real-IP $remote_addr;` in location object.
+
+we'll use a flag that has ip-addresses for each proxy server, it's a best practice, **READ UP ON NGINX, it's important!**
+
+this is it:
+
+```conf
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+```
+
+To make sure front is using nginx as it's used with backend- we make sure that view/files listens to api/v1/subpath, because nginx specifics any api/v1 is meant for our BE. and what's not having it is for FE. and in default.conf we make the location as /api
+
+So, I change the simple hi docker path to /api/v1 instead of / along
+
+in our docker-compose we add nginx image as:
+
+```yml
+nginx:
+  image: nginx:stable-alpine
+# and we don't have to publish our node-app port 3000:3000 anymore,
+# so we REMOVE THIS🔴:
+ports:
+  - "3000:3000"
+# and we add this to nginx under image
+ports:
+  - "3000:80"
+```
+
+and we change the prod and dev ones, check their new content!
+
+then we add our new conf file into nginx container, there're many ways
+
+1. we can create our own custom nginx image that has our config built-in
+2. configure a volume, a bind mount to have it sync those files!
+
+we'll do that by 2nd approach as:
+
+```yml
+# in main docker-compose file, we'll add this to nginx
+volumes:
+  - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+# so we needed to find out where it is in linux
+# we synced it with our nginx, then made it as read only for security reasons!
+```
+
+let's tear 'em down, then build our images! then up, as in :733
+then let's try sending a req
+
+Now, go to [express proxy](https://expressjs.com/en/guide/behind-proxies.html) link to learn more about it
+
+in production projects using nginx as a proxy with express, requires using this extra configuration!🔴
+
+it's to trust heading from proxies:
+
+```js
+// right above session middleware, in index.js, we'll add this:
+app.enable("trust proxy")
+```
+
+#### Now, let's add a second node instance‼️
+
+tear 'em down, then use build up command with these new flags:
+
+```sh
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml down
+# next
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --scale node-app=2
+```
+
+Then we test that those two nodes are working with adding a console in the main path: `http://localhost:3000/api/v1/` check it out!
+
+then we'll create a new terminal prompt, and use docker logs for each one. then use postMan get req twice with main page path, it should do one for each.
+
+I see it's only using the upper in logs, which is 2nd one. it works with both!
+
+Lastly before prod, we'll use [cors](https://www.npmjs.com/package/cors) to handle one domain in FE, with different BE domains.
+
+```js
+// if we were having eg: www.google.com -> www.yahoo.com
+// be default that'll be rejected from our front end
+```
+
+So, that's what cors does‼️🟩: `npm i cors` then config it with its middleware! THAT'S IT‼️
+
+```js
+const cors = require('cors');
+app.use(cors());// there's another option for specific routes!
+// check it up from 1127 link!
+```
+
+then, we'll re-build our images with -V, ; because I didn't use the `--scale node-app=2`, it removed 2nd container!🔴
+
+```sh
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build -V
+```
+
+---
+
+## Part 03: Moving to Prod
+
+* 3:57:44 Installing docker on Ubuntu(Digital Ocean)
+
+We'll start by deploying doing the wrong way, then best practices to learn!
