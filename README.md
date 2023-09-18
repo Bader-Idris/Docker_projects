@@ -1149,6 +1149,218 @@ docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build -V
 
 ## Part 03: Moving to Prod
 
-* 3:57:44 Installing docker on Ubuntu(Digital Ocean)
+### 3:57:44 Installing docker on Ubuntu(Digital Ocean)
 
-We'll start by deploying doing the wrong way, then best practices to learn!
+We'll start by deploying doing the wrong way, then best practices to learn, and we'll be fixing each bug to know what's kept under the hat!
+
+> **we do need to access to a ubuntu server**, digital ocean has it, as a used in this course option! and we can work with local machines(bad practice, real bad)
+
+There're many places to run our project with an ubuntu server, as:
+
+1. AWS -> ec2 instance
+2. Digital ocean
+3. GCP
+4. **any private server than handles ubuntu in it!**
+
+After singing up in digital ocean, which requires 5$ minimum balance, we choose the starting point, was: `Get Started with a Droplet` =>
+
+```json
+nextSteps: {
+  "distribution": "ubuntu",
+  "plan": "basic",
+  "CPU options": "regular intel with SSD (cheap one)",
+  "monthly paying": "5$ with one cpu",
+  // there were: "50 GB SSD Disk 2 TB transfer" for 10$, and other plans! compare that with GCP or AWS
+  "dataCenter": "near to your region(I would pick what near my audience)",
+  "authentication": "password",//there is another option: SSH(more secure), passwd is for setting a root password to access droplet
+  "Enable back-ups": "none",//he passed this, he may add it manually
+}
+```
+
+After a couple of minutes, finishing setting the VM and starting the stack, **we do need to install docker in that prod environment**,
+
+> we can see our public ip-address: 255.255.255.255
+
+copy that public ip_address and open local terminal!
+
+```powershell
+# in our terminal
+# ssh root@<copied_ip_address> similar to
+ssh root@255.255.255.255
+# then it asks for password
+```
+
+After accessing our server, we start by installing docker, check [docs](https://docs.docker.com/engine/install/ubuntu/) for ubuntu. there easy steps, one of them is to get a shell file that automates process, which is [with this](https://get.docker.com/), it's even easier, only copy the curl command under: `This script is meant for quick & easy install via:`, then run that shell file. I know an easier approach to get that file. in that docs at the bottom!
+
+Check `docker-compose -v` if exits with that installation! if not, go to docker-compose install on ubuntu. but in majority it'll be installed, it's becoming the standard
+
+then make project DIR as a repo to connect it with github!
+
+we'll need to add a couple of variables that are used in dev, but aren't in prod yet. 🟢 because in prod we don't want to hard code it as in dev.🔴 if you'll forget that, a hijacker might steal thy resources and makes you a professional singer for some minutes👾
+
+So, we'll get them from our server machine. without letting github to get them. we'll make some changes in prod compose!
+
+```yml
+# we'll copy those from dev compose
+  - NODE_ENV=development => 
+  - MONGO_USER=Bader
+  - MONGO_PASSWORD=myPassword
+  - SESSION_SECRET=someSecret
+  # past them in node-app environments of production, and do this!
+  - NODE_ENV=production
+  - MONGO_USER=${MONGO_USER}
+  - MONGO_PASSWORD=${MONGO_PASSWORD}
+  - SESSION_SECRET=${SESSION_SECRET}
+  # so, these hidden variables will get their values from server machine, as I learned with shell scripting
+  # we'll do same with mongo variables!
+  mongo:
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+```
+
+In our server machine, as I did with postgres getting the password for DB, we do:
+
+```sh
+# export <env_var=its_value>
+export MONGO_USER=Bader
+# printenv appears our environment variables
+```
+
+Instead of sending each one separately, create a .env file that is hidden in system files, to put all vars inside, he uses:`vi <newFileCreatedWhenInvoked>, instead of nano. both are popular`
+
+then he opens an existing `.profile` file, and its code is:
+
+```sh
+if [ "$BASH" ]; then
+  if [-f ~/.bashrc] ; then
+    . ~/bashrc
+  fi
+fi
+
+mesg n 2> /dev/null || true
+
+# this is what he adds
+set -o allexport; source /root/.env; set +o allexport
+# using root is a bad practice, use a DIR in OS dirs!
+```
+
+That's only to loop through, and send them to machine, my scripting experience allows me to do 1k better code than this
+
+he log out then in, to let changes get effected
+
+He says, this approach isn't the best, so you can find something better, I prefer picking values from files without putting them directly in an .env file nor in printenv, as in psql example I used, that requires using export when invoking values:
+
+```sh
+# similar to this
+export PGPASSWORD=$(cat ~/.pgpass | awk -F: '{if ($1 == "localhost") print $5}')
+# or maybe using stout, stdin stderr. approaches.
+```
+
+Then he pushes changes to git remote repo!
+
+then create app DIR in server machine, and cloned this project's repo from its github. then he runs docker-compose.prod command!
+
+after it's built in server machine, in postMan we create a new request with server_ip_address. `http://255.255.255.255/api/v1` port isn't important, because it's on default 80.
+
+### 4:18:57 Pushing changes the hard way
+
+It'll be working well, but how to push out changes to prod server!
+
+firstly, he uses the git approach, adding to staging area then committing then adding to remote repo! and in the prod server: gill pull,{what about rebase and merge!?🤔}
+
+Now, because it's the prod one, it'll not use changes as with nodemon do with dev one! `{syncing the code}`
+
+we can use the down up approach, which is slow because of rebuilding images, or we can do the up directly, as we learned before! with `--build` flag🔴 without it, only big changes will occur, not changes in app files, as adding some text
+
+that approach is not preferred when you know that the only image changed was node-app, and it checks for a change in each image, so this is easily fixed with adding the name of the **service name**`{node-app}` after the --build flag,
+
+But it checked mongo, it's because we made node depends_on mongo, there's a way around it, which is by passing another flag, `--no-deps` as:
+
+```sh
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --no-deps node-app
+```
+
+If we wanna rebuild node-app, even if no changes happened, the command `--force-recreate` does it,🔴 but it recreates mongo, which is not good, so we use same no-deps as:
+
+```sh
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate --no-deps node-app
+```
+
+### Dev to Prod workflow review
+
+in our used to flow that we worked with (![bad for production](image.png)) we were building our image in our production server
+
+> ⚠️🔴**We should never build our image in production server**🔴⚠️
+
+that is because it takes resources!
+
+* cpu cycles/clocks
+* memory!
+
+so in our created tiny demo application, it should not take that much cpu house-power to build that image!
+
+doing this on our production server, could end up our application starving actual production traffic, because all of the compute power and memory is going to worth building an image!
+
+> **production server should only be meant for production traffic**
+
+so, we'll ultimately move to this approach
+
+the engineer will build out images on dev server(local machine), then push it to docker hub, `{so it's just a repo of images}`, and we can use any other docker repository, as Amazon's repo, But **docker hub is free!**🟢
+
+Lastly we'll pull in our finalized image into production server. then run it with docker-compose up
+![good practice](image-1.png)
+
+### 4:30:50 Improved Dockerhub workflow
+
+have an [account](https://hub.docker.com/) on docker hub, in that account, create a [new repository](https://hub.docker.com/repositories/), we only have one private repo allowed in free plan!
+
+then, do `docker login`, then, let's push our tiny app from localhost, check `docker push --help`, we'll see: `NAME[:TAG]`
+
+do: `docker image ls` to see out latest node-app image name!
+then `docker push <foundImageName>:tag`, if we don't add :tag, it'll be latest. mine was:
+
+```docker
+docker push docker_course_freecodecamp-node-app
+```
+
+It'll return access denied!
+
+that's because it needs to have a very specific name! take the repo name: `<hubAccount/ImageOrRepoName>` as: `baderidris/docker_course`,
+
+So, we need to rename our local image name to hub repo name,
+Use: `docker tag <localName> <repoNewName>`, as:
+
+```sh
+docker tag docker_course_freecodecamp-node-app baderidris/docker_course
+# then we'll be able to push it
+docker push baderidris/docker_course
+```
+
+after it's done, check the hub repo, it should be laying there‼️
+
+Before being able to pull that repo from our prod server, we need to tell docker-compose that we're using this image for out application moving forward, so, in `docker-compose.yml` file, add image property under the node-app service, with hub repo name, as:
+
+```yml
+node-app:
+  build: .
+  image: baderidris/docker_course
+  # 11th in mine!
+```
+
+then update thy github with new changes, then in prod server pull those git changes, using docker up command with -d, with these changes gives it the new name, but how can we push those changes, to get changes in docker.hub into our prod server we use docker-compose with `build` flag, without 2 dashes, not `up` flag, as:
+
+```docker
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml build
+```
+
+that'll build all services, in prod we have one only service: node-app, looks like he's meaning app services, to be working with nginx!
+
+To build only a service and skip others in prod, use 1354 command with service name at the tail, as:
+
+```sh
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml build node-app
+
+```
+
+### 4:46:10 Automating with watchtower
