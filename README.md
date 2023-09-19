@@ -1492,3 +1492,38 @@ We'll change compose prod yaml file to work with swarm!
 The interesting part starts with: `{ROLLBACK_CONFIG, UPDATE_CONFIG}`
 they're related to updating our application without experiencing any loss. 🟢 **update_config is the reason we went to docker swarm!** 🟢. ![its config](assets/image6.png)
 
+to use that docker swarm in production server, after pulling git repo changes into it, we use:
+
+> docker stack
+
+check `docker stack --help`, we'll use deploy, check `docker stack deploy --help`
+
+We'll get comose files with its command related to our swarm!
+
+```sh
+# docker stack deploy -c docker-compose.yml -c docker-compose.prod.yml <stackName> <= app name
+docker stack deploy -c docker-compose.yml -c docker-compose.prod.yml myapp
+```
+
+To check the list of swarm nodes, use: `docker node ls`, and for stack, do `docker stack ls`
+To list out all the services in the stack, we use `docker stack services myapp`, to verify our 8 replicas, we use `docker ps`
+To check all services across all stacks, we use: `docker service ls`
+
+We can list out tasks, docker swarm generates a task when creating, deleting, and updating a service! Then it pushes it to the worker node, so we do: `docker stack ps --help`, we can see our stack task list with `docker stack ps <NameOfStack>` as `docker stack ps myapp`
+
+### 5:16:13 Pushing changes to Swarm stack
+
+Let's make a change in our app to test what we built. to see if we can update our prod server with those changes, with a rolling methodology using Swarm, so that we experience minimal to the loss.
+
+* firstly, we check if app is working, with postMan apis we created before; then change app code!
+* push changes to git, then build prod, exactly as `:1362`, and push it to docker hub as `:1364`.
+* then in production server, we'll use -c command for swarm, same in `:1505`.
+* then we check if those changes are good, with: `docker stack ps myapp`.
+
+it should shut down two containers because of using parallelism‼️ then it should do the delay: 15s
+
+### Outro
+
+Sanjeev Thiyagarajan said: even with docker simplifying the process, you'll end up with plenty of challenges connecting dev with ops: devOps 😢
+
+* **ci/cd pipeline** would be the logical next step.
