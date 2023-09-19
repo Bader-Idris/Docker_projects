@@ -1477,4 +1477,18 @@ that replicas defines how many instances we wanna run, if `replicas: 6` it'll be
 We'll change compose prod yaml file to work with swarm!
 
 ```yml
+# under node-app:
+  deploy:
+# we'll add replicas
+    replicas: 8
+# then add restart_policy
+    restart_policy:
+      condition: any
+    update_config:
+      parallelism: 2
+      delay: 15s
 ```
+
+The interesting part starts with: `{ROLLBACK_CONFIG, UPDATE_CONFIG}`
+they're related to updating our application without experiencing any loss. 🟢 **update_config is the reason we went to docker swarm!** 🟢. ![its config](assets/image6.png)
+
