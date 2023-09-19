@@ -1289,7 +1289,7 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-re
 
 ### Dev to Prod workflow review
 
-in our used to flow that we worked with (![bad for production](image.png)) we were building our image in our production server
+in our used to flow that we worked with (![bad for production](assets/image5.png)) we were building our image in our production server
 
 > ⚠️🔴**We should never build our image in production server**🔴⚠️
 
@@ -1309,7 +1309,7 @@ so, we'll ultimately move to this approach
 the engineer will build out images on dev server(local machine), then push it to docker hub, `{so it's just a repo of images}`, and we can use any other docker repository, as Amazon's repo, But **docker hub is free!**🟢
 
 Lastly we'll pull in our finalized image into production server. then run it with docker-compose up
-![good practice](image-1.png)
+![good practice](assets/image-1.png)
 
 ### 4:30:50 Improved Dockerhub workflow
 
@@ -1337,9 +1337,9 @@ docker tag docker_course_freecodecamp-node-app baderidris/docker_course
 docker push baderidris/docker_course
 ```
 
-after it's done, check the hub repo, it should be laying there‼️
+after it's done, check the hub repo, it should be laying in there‼️
 
-Before being able to pull that repo from our prod server, we need to tell docker-compose that we're using this image for out application moving forward, so, in `docker-compose.yml` file, add image property under the node-app service, with hub repo name, as:
+Before being able to pull that repo from our prod server, we need to tell docker-compose that we're using this image for our application moving forward, so, in `docker-compose.yml` file, add image property under the node-app service, with hub repo name, as:
 
 ```yml
 node-app:
@@ -1360,7 +1360,121 @@ To build only a service and skip others in prod, use 1354 command with service n
 
 ```sh
 docker-compose -f docker-compose.yml -f docker-compose.prod.yml build node-app
-
+# then we push it to docker hub, with push instead of build, if we don't add service name, it'll push all
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml push node-app
 ```
 
+you can see the changes in docker hub
+Now, go to prod server, check compose help: `docker-compose -f docker-compose.yml -f docker-compose.prod.yml --help`, we'll see the `pull` flag, it'll check 'em all to pull.
+
+then in same prod server, try up command:
+
+```sh
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+but that command checks all images. consider we wanna update node-app with latest, not others, so we use:
+
+```sh
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps node-app
+```
+
+---
+
+Steps:
+
+1. we made a change in our express app!
+2. build with docker-compose build `<can add namedServices>`
+3. push brand new image to docker hub, docker-compose push `<can do one though>`
+4. in Prod_server: pull that new image `<can specify though{service}>`
+5. in Prod_server: docker-compose up `<Can spec_ser>` better using --no-deps preventing DBs to rebuild
+6. test prod_server new changes {http://255.255.255.255/api/v1} with postMan
+
 ### 4:46:10 Automating with watchtower
+
+we can watch new changes uploaded into our docker hub into our production server.{an option, cause some developers don't like automating such sensitive actions, might cause crashes with unawareness of developers}
+
+that's where watchtower comes in handy, search for: [docker watchtower](https://github.com/containrrr/watchtower), go to its [full dock page](https://containrrr.dev/watchtower/)
+
+That tool is a container to watch changes as in tsc and other dist systems
+
+commands are in its docs, but let's create a one {in prod_server}:
+
+```sh
+docker run -d --name watchtour -e WATCHTOWER_TRACE=true -e WATCHTOWER_DEBUG=true -e WATCHTOWER_POLL_INTERVAL=50 -v /var/run/docker.sock:/var/run/rocker.sock containrrr/watchtower app_node-app_1
+
+# -e is for env_var, can be found in docks => trace
+
+# we wanna pass poll interval though, for how frequently will it be pulled, So WATCHTOWER_POLL_INTERVAL will check seconds, 50 means 50s
+
+# -v /var/run/docker.sock:/var/run/rocker.sock is its docks volume
+
+# then we specify the image! comes from main page, 3 Rs, real 🥜
+# containers to watchout, as we added DIR_node-app_1, we can add more.
+```
+
+Check its logs with -f flag. then make changes to test if you want to, and use build push steps, to get into docker.hub
+We should do a docker login if that was in a private repo, for its credentials
+
+Can delete it with `docker rm watchtour -f`, if there's been a mistake!
+
+
+### 4:56:06 Why we need an orchestrator
+
+because we tear down and recreate our containers then start that container, we'll experience network outage, our app being shut down! and that happens with both manual and watchout ways! That makes us lose some production traffic
+
+After *Sanjeev Thiyagarajan*'s gone through bunch of stackOverFlow responses, he found that there's a hack around!
+
+We'll put some hacks together to simulate a rolling update.
+But these hacks aren't recommended to be run in production! because docker-compose isn't a **container orchestrator**
+
+Some options to help us achieve lost less upgrades, are:
+
+* `{kubernetes}` one of the popular orchestrators, it's one of its proposes, we'll not cover it, another lesson in freeCodeCamp with more 5 hours is only to **test the waters with toes**😁, he says it needs 35 more hours if we'll cover it!
+* Docker Swarm, a **built-in orchestrator** container comes with docker! we'll use it! we'll only know we do we need to put those pieces together, by using Docker Swarm, and all course topics
+
+### 5:03:32 Docker Swarm
+
+**Docker-compose** main purpose is to *only be a development tool* to **spit out containers and delete them**, can't do much else, rolling updates,
+and we can **only use it onto one server**, we can't split app containers, as 5-6 for instance with many servers to handle going down of some and have redundancy. docker-compose is a bunch of commands listed out in a ylm form
+
+> That's were docker Swarm comes in!
+
+🟩Docker Swarm has logic, has brains, it can distribute containers as many servers as we want!🟩 we don't need to run all containers together, it can build new changed containers then when up and running stops old ones and starts new ones
+
+Each server within docker Swarm is called a node! two types of node, `manager node`, and `worker node`![manager node, worker node](assets/image-2.png), manager is the brain, worker is the hands. manager node can handle its operations and worker operations, so it's the mighty one!
+
+Docker-compose is tended to be for development, not production.
+
+#### 5:03:32 finished the intro & theoretical issue
+
+let's set up our swarm for production environment. it's already been installed with docker! but it defaults to be disabled
+
+use: `docker info` to check if swarm is enabled or not! inactive == idle
+
+To enable it, we use: `docker init`, so initializing it will trigger it, the error occurs is because docker comes up with 2 ip_addresses, so in ubuntu, use `ip add` to see the list of ip addresses, it'll appear `eth0` and `eth1` pick the public one`<eth0>`, and take the **specify one with** which is: `--advertize-addr` command!
+
+Now to add that ip and enable docker Swarm, use:
+
+```sh
+docker swarm init --advertize-addr 255.255.255.255
+# last two commands prompt with message from ☝️ command, are
+# second to last allows us to add a node into our swarm as a worker node.
+# last one is to add it as a manager node!
+docker --help
+# we'll see rm, create, update<updates config>, stop; all are for containers, Swarm services are similar to docker commands
+```
+
+> To access swarm commands use: **docker service**
+
+check `docker service --help`.
+We can do add swarm commands into a file as we did with docker-compose, *we could even use compose file with swarm commands*, with few extra fields that are swarm related!
+
+Check docks reference => compose file reference => deploy [here](https://docs.docker.com/compose/compose-file/deploy/#replicas), we'll start caring when we see the: `REPLICAS` section.
+
+that replicas defines how many instances we wanna run, if `replicas: 6` it'll be 6 instances, another important one is: `RESOURCES`, and `RESTART_POLICY` is important.
+
+We'll change compose prod yaml file to work with swarm!
+
+```yml
+```
