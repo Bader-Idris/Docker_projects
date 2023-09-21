@@ -156,3 +156,25 @@ rewrite ^/number/(\w+) count/$1
 Mentor uses docker to use containers as we did in the 5 hours course.
 
 after 37m I don't need anything from this video!
+
+---
+
+## important about nginx with Sahn Lam and docks
+
+**Reverse proxy**{nginx is 1 of 'em}:
+
+1. protects a web site
+2. load balancing
+3. caching
+4. handles SSL encryption
+
+**Reverse proxy** can handle caching for frequently used content!
+
+SSL encryption, by handling ssl handshake only once, it can less loss of computation!
+
+modern websites have many reverse proxy layers, as meta, google, amazon, apple, netflix, and stripe.
+
+1. first layer could be an **edge service** as **cloud flare**
+2. 2nd layer could be an api gateway/load balancer
+
+Many cloud providers combine these two layers into an `ingress service`.
