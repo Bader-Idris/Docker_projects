@@ -1179,7 +1179,7 @@ nextSteps: {
 
 After a couple of minutes, finishing setting the VM and starting the stack, **we do need to install docker in that prod environment**,
 
-> we can see our public ip-address: 255.255.255.255
+> we can see our **public ip-address**: 255.255.255.255
 
 copy that public ip_address and open local terminal!
 
@@ -1245,8 +1245,6 @@ set -o allexport; source /root/.env; set +o allexport
 # using root is a bad practice, use a DIR in OS dirs!
 ```
 
-That's only to loop through, and send them to machine, my scripting experience allows me to do 1k better code than this
-
 he log out then in, to let changes get effected
 
 He says, this approach isn't the best, so you can find something better, I prefer picking values from files without putting them directly in an .env file nor in printenv, as in psql example I used, that requires using export when invoking values:
@@ -1263,11 +1261,13 @@ then create app DIR in server machine, and cloned this project's repo from its g
 
 after it's built in server machine, in postMan we create a new request with server_ip_address. `http://255.255.255.255/api/v1` port isn't important, because it's on default 80.
 
+> 🔴 IMPORTANT: to persist variables, make it run each time os starts, by placing it in a startup file, as: `/etc/profile` or `/etc/environment` 🔴
+
 ### 4:18:57 Pushing changes the hard way
 
 It'll be working well, but how to push out changes to prod server!
 
-firstly, he uses the git approach, adding to staging area then committing then adding to remote repo! and in the prod server: gill pull,{what about rebase and merge!?🤔}
+> firstly, he uses the git approach, adding to staging area then committing then adding to remote repo! and in the prod server: **git pull**
 
 Now, because it's the prod one, it'll not use changes as with nodemon do with dev one! `{syncing the code}`
 
@@ -1315,7 +1315,7 @@ Lastly we'll pull in our finalized image into production server. then run it wit
 
 have an [account](https://hub.docker.com/) on docker hub, in that account, create a [new repository](https://hub.docker.com/repositories/), we only have one private repo allowed in free plan!
 
-then, do `docker login`, then, let's push our tiny app from localhost, check `docker push --help`, we'll see: `NAME[:TAG]`
+then, do **docker login**, then, let's push our tiny app from localhost, check `docker push --help`, we'll see: `NAME[:TAG]`
 
 do: `docker image ls` to see out latest node-app image name!
 then `docker push <foundImageName>:tag`, if we don't add :tag, it'll be latest. mine was:
