@@ -1527,3 +1527,37 @@ it should shut down two containers because of using parallelism‼️ then it sh
 Sanjeev Thiyagarajan said: even with docker simplifying the process, you'll end up with plenty of challenges connecting dev with ops: devOps 😢
 
 * **ci/cd pipeline** would be the logical next step.
+
+#### easy monitoring
+
+one of the simple and fast ways to monitor our docker containers is using `docker stats` command!
+you can also check its `--help` for its few options.
+as using `--no-stream` which throws one only log instead of the default live one!
+
+#### medium monitoring
+
+we can also use the more professional `Glances` monitor cli tool, it's written in python and deployed as a separated container, so we can use is as a website refreshing data page.
+
+> check **nicolargo/glances:latest** on hubs
+
+#### Advanced monitoring
+
+another option is `portainer` which is more professional than mentioned, because it gives you managing configs and monitoring together, it's really nice and user-friendly with its all professional tools in quick actions for ie
+
+#### Legendary monitoring
+
+`zabbix` is an open source tool of monitoring not only docker containers but also:
+
+* kubernetes
+* linux host
+* windows host
+* network performance
+* application performance
+* cloud
+* and even more!🤯
+
+we can even check history usage using it!
+
+#### fast and easy monitoring
+
+a simulated to docker desktop monitoring is `checkMK`, but can be legendary with its functionalities
